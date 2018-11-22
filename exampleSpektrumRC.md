@@ -86,9 +86,8 @@ LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/lib
 ```
 
 ## Simblee:
-Simblee uses the arduino platform. In:
-[Drone.ino](ble_client_ros/spektrumExampleSimbleeSrc/Drone.ino) 
-Simblee receives the controll data over BLE and send every 11ms a Spektrum frame over the UART to the Flight Controller. The Flight Controller uses LightTelemetry over the TX Channel (115200 Baud) and send back Telemetry data to the Simblee. Simblee sends this data with BLE back to the ROS Node 
+Simblee uses the arduino platform. In [Drone.ino](ble_client_ros/spektrumExampleSimbleeSrc/Drone.ino) 
+Simblee receives the controll data over BLE and send every 11ms a Spektrum frame over the UART to the Flight Controller. The Flight Controller uses LightTelemetry over the TX Channel (115200 Baud) and send back Telemetry data to the Simblee. Simblee sends this data with BLE back to the ROS Node.
 `
 ## TODO: 
 * find bug in cpp node
