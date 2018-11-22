@@ -86,71 +86,9 @@ LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/lib
 ```
 
 ## Simblee:
-Simblee uses the arduino platform. The following code sent every 11ms a Spektrum frame over the UART.
-
-```c
-#include <SimbleeBLE.h>
-#define SPEKTRUM_DSMX_11 0xb2
-#define SPEKTRUM_2048_CHANNEL_COUNT 12
-#define SPEKTRUM_NEEDED_FRAME_INTERVAL     5000
-#define SPEKTRUM_BAUDRATE 115200
-#define MASK_2048_CHANID 0x7800 
-#define MASK_2048_SXPOS 0x07FF 
-#define SPEK_FRAME_SIZE 16
-
-unsigned long startMillis; 
-unsigned long currentMillis;
-const unsigned long period = 11; 
-
-
-uint8_t spekFrame[SPEK_FRAME_SIZE];
-uint16_t spekChannelData[12];
-
-uint16_t bledata[6] = {0, 1024, 1024, 1024, 0, 0};
-bool send = true;
-
-void setup() {
-  override_uart_limit = true; 
-  Serial.begin(SPEKTRUM_BAUDRATE,3,2);//baud rx tx
-  startMillis = millis();  //initial start time 
-  SimbleeBLE.deviceName = "Drone";
-  SimbleeBLE.begin();
-}
-
-
-
-void loop() {
-  currentMillis = millis(); 
-  if (currentMillis - startMillis >= period)  {
-    
-    if(!send){     
-      Serial.write(SPEKTRUM_DSMX_11); //start 
-      Serial.write((uint8_t)00);      // missed frame count
-  
-      for(uint16_t i = 0; i< 7;i++){
-        uint16_t data =  (i << 11)+(0 & MASK_2048_SXPOS);
-        if(i<6){
-          data = (i << 11)+(bledata[i] & MASK_2048_SXPOS);
-        }
-        
-        Serial.write((uint8_t)(data >> 8));//Send Upper Byte first
-        Serial.write((uint8_t)(data));// Send Lower Byte
-        send = true;
-      }
-    }
-    startMillis = currentMillis; 
-  }
-}
-
-void SimbleeBLE_onReceive(char *dataBLE, int len){
-  if(send){ 
-    for(int i,e = 0;i<12 && i<len;i=i+2,e++){
-      bledata[e]=(((uint16_t)dataBLE[i+1])<<8) + (uint16_t)dataBLE[i]; // little Endien
-    } 
-    send = false;
-  }
-}
-```
+Simblee uses the arduino platform. In:
+[Drone.ino](ble_client_ros/spektrumExampleSimbleeSrc/Drone.ino) 
+Simblee receives the controll data over BLE and send every 11ms a Spektrum frame over the UART to the Flight Controller. The Flight Controller uses LightTelemetry over the TX Channel (115200 Baud) and send back Telemetry data to the Simblee. Simblee sends this data with BLE back to the ROS Node 
+`
 ## TODO: 
 * find bug in cpp node
-* send telemetry to ROS  
