@@ -2,6 +2,7 @@
 
 import pygatt
 import rospy
+import binascii
 from sensor_msgs.msg import Joy
 
 
@@ -87,8 +88,9 @@ telPitch =0
 telRoll =0
 telYaw =0
 telBat =0
+tofSensor = 0;
 def handle_data(handle, value):
-    global telPitch,telRoll,telYaw,telBat
+    global telPitch,telRoll,telYaw,telBat,tofSensor
     """
     handle -- integer, characteristic read handle the data was received on
     value -- bytearray, the data returned in the notification
@@ -104,19 +106,21 @@ def handle_data(handle, value):
             telBat = twos_comp(value[3]+(value[4]<<8))
             #telCurr  = twos_comp(value[5]+(value[6]<<8))
             #telRSSI   = value[7]
-            #telAirSpeed   = value[8]
+           # telAirSpeed   = value[8]
             #telFlightMode   = value[9]
             #rospy.loginfo("S FRAME: BAT:%d MODE:%s crc:%d", telBat, value[9], value[10] )
+        if value[2]==0x4C and len(value)==5:# Costum L Frame
+            tofSensor = value[3]+(value[4]<<8)
         #else:
            #rospy.loginfo("%d %s",len(value), binascii.hexlify(value))
-    rospy.loginfo("%.3f [%3d %3d %3d]",(float(telBat)/1000), telPitch, telRoll, telYaw)          
+    #rospy.loginfo("%d %s",len(value), binascii.hexlify(value))          
            
  
 def twos_comp(val):
     """compute the 2's complement of int value val"""
     if (val & 0x8000): # if sign bit is set e.g., 8bit: 128-255
-        val = val - (0x10000)# compute negative value
-    return val# return positive value as is
+        val = val - (0x10000)        # compute negative value
+    return val                         # return positive value as is
 
 
 def main(): 
@@ -144,6 +148,7 @@ def main():
                     connected = sendControlData(device)
                 
 
+            rospy.loginfo("%.3f [%3d %3d %3d] %4d",(float(telBat)/1000), telPitch, telRoll, telYaw, tofSensor)
             rate.sleep()
     finally:
         adapter.stop()
