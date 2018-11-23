@@ -2,7 +2,7 @@
 
 import pygatt
 import rospy
-import binascii
+import PID
 from sensor_msgs.msg import Joy
 
 
@@ -15,11 +15,12 @@ from sensor_msgs.msg import Joy
 
 
 ADDRESS_TYPE   = pygatt.BLEAddressType.random
-
 adapter = pygatt.GATTToolBackend()
 
 device  = 0
 thrust  = 0
+t_max = 1024;
+t_min=512;
 yaw     = 1024
 pitch   = 1024
 roll    = 1024
@@ -27,43 +28,46 @@ arm = 0
 acro = 0
 watchdog = 0;
 watchdog_old = 0;
+hold = -1;
+
+pid = PID.PID(1, 1, 0.001)
 
 
-def calcbytes():
-    global thrustH, thrustL, yawH, yawL, pitchH, pitchL, rollH, rollL, armH, armL, acroH, acroL
+
+def regler(ist,soll):
+    pid.update(ist)
+    if pid.output < t_min:
+        return t_min #don't want that rotor stop spinning
+    elif pid.output >t_max:
+        return t_max #too much
+    else:
+        return pid.output
     
-    thrustH = thrust >> 8
-    thrustL = 0x00FF & thrust 
-
-    yawH = yaw >> 8
-    yawL = 0x00FF & yaw
-
-    pitchH = pitch >> 8
-    pitchL = 0x00FF & pitch
-
-    rollH = roll >> 8
-    rollL = 0x00FF & roll
-
-    armH = arm >> 8
-    armL = 0x00FF & arm
-
-    acroH = acro >> 8
-    acroL = 0x00FF & acro
-
+    
 
 def joy_callback(data):
-    global yaw,pitch,roll,thrust, arm, acro, watchdog
+    global yaw,pitch,roll,thrust, arm, acro, watchdog, hold, pid
 
     watchdog = data.header.seq;
     yaw = int((((-1*data.axes[0])+1))*1023.5)
 
-    t = ((1-data.axes[5])/2)
-    thrust = 0 if (t == 0) else int(t*512+512)
     roll  = int((((-1*data.axes[3])+1))*1023.5)  
     pitch = int((data.axes[4]+1)*1023.5);
     arm   = data.buttons[4]*2047
     acro  = data.buttons[5]*2047
-
+    
+    if acro > 1000 and hold <0:
+        hold = tofSensor
+        pid.SetPoint = hold
+    elif acro > 1000 and hold >0:
+        thrust = int(regler(tofSensor, hold))
+        
+    if acro <=1000:
+        hold = -1
+        t = ((1-data.axes[5])/2)
+        thrust = 0 if (t == 0) else int(t*(t_max-t_min)+t_min)
+    
+    
 
 def connect():
     DEVICE_ADDRESS = rospy.get_param('~device')  
@@ -77,8 +81,7 @@ def connect():
 
 def sendControlData(device):
     try: 
-        calcbytes()
-        device.char_write_handle(0x0014, [thrustL, thrustH, rollL, rollH, pitchL, pitchH, yawL, yawH, armL, armH, acroL, acroH]) 
+        device.char_write_handle(0x0014, [0x00FF & thrust, thrust >> 8, 0x00FF & roll, roll >> 8, 0x00FF & pitch, pitch >> 8, 0x00FF & yaw, yaw >> 8, 0x00FF & arm, arm >> 8, 0x00FF & acro, acro >> 8]) 
         # rospy.loginfo("%d %d %d %d %d %d %d %d %d %d %d %d", thrustH, thrustL, yawH, yawL, pitchH, pitchL, rollH, rollL, armH, armL, acroH, acroL)
         return True
     except pygatt.exceptions.NotConnectedError:
@@ -148,7 +151,8 @@ def main():
                     connected = sendControlData(device)
                 
 
-            rospy.loginfo("%.3f [%3d %3d %3d] %4d",(float(telBat)/1000), telPitch, telRoll, telYaw, tofSensor)
+            #rospy.loginfo("%.3f [%3d %3d %3d] %4d",(float(telBat)/1000), telPitch, telRoll, telYaw, tofSensor)
+            rospy.loginfo("%4d %4d %d", tofSensor, hold, thrust)
             rate.sleep()
     finally:
         adapter.stop()
