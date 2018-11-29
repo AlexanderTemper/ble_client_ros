@@ -10,6 +10,7 @@ project(ble_client)
 find_package(catkin REQUIRED COMPONENTS
   ble_client_cpp
   roscpp
+  rospy
   std_msgs
 )
 

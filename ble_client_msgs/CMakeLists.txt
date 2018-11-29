@@ -11,6 +11,7 @@ add_message_files(
   HandleByteArray.msg
   HandleUInt8Array.msg
   HandleUInt16Array.msg
+  HandleDroneData.msg
 )
 
 

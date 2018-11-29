@@ -9,10 +9,21 @@
 #define MASK_2048_SXPOS 0x07FF 
 #define SPEK_FRAME_SIZE 16
 
+#define START_TIMER cpuUsedStart = micros();
+#define STOP_TIMER cpuUsed = cpuUsed + (micros()-cpuUsedStart);
+
 // Timer
 unsigned long startMillis; 
 unsigned long currentMillis;
-const unsigned long period = 11;
+
+unsigned long cpuUsed;
+unsigned long cpuUsedStart;
+
+unsigned long cpuTotalStart;
+
+
+unsigned long statTimer;
+const unsigned long period = 11*1000;
 
 
 // Spektrum system type values
@@ -21,6 +32,8 @@ uint16_t spekChannelData[12];
 uint8_t myByte = 0;
 uint16_t bledata[6] = {0, 1024, 1024, 1024, 0, 0};
 bool send = true;
+uint8_t spekFrameMissed = 0;
+uint8_t spekFrameSend = 0;
 
 // Telemetry
 char telemetryData[20]={0};
@@ -32,11 +45,14 @@ Adafruit_VL53L0X tofSensor = Adafruit_VL53L0X();
 VL53L0X_RangingMeasurementData_t measure;
 uint16_t rangeMilliMeter = 0;
 uint8_t rangeStatus = 0;
+bool sendTOF = false;
 
 void setup() {
+    
     override_uart_limit = true; 
     Serial.begin(SPEKTRUM_BAUDRATE,3,2);//baud rx tx
-    startMillis = millis(); 
+    cpuTotalStart= statTimer = startMillis = micros(); 
+    cpuUsed = 0;
     SimbleeBLE.deviceName = "Drone";
     SimbleeBLE.begin();
     tofSensor.begin();
@@ -47,21 +63,57 @@ void setup() {
  * main loop
  */
 void loop() {
-    currentMillis = millis(); 
-    if (currentMillis - startMillis >= period)  {
-        
-        if(!send){
-            send_Spektrum_frame();
-            send = true;
+    currentMillis = micros(); 
+    
+    START_TIMER
+    if((currentMillis - startMillis >= 6000) && !sendTOF){
+        if(!SimbleeBLE.radioActive){
+            tofSensor.rangingTest(&measure, false);
+            send_tofSensor_data();
+            sendTOF=true;
         }
-        tofSensor.rangingTest(&measure, false);
-        send_tofSensor_data();
-        
-        startMillis = currentMillis; 
     }
-    get_LTM_data();
+    STOP_TIMER
+    
+    if (currentMillis - startMillis >= period)  {
+        START_TIMER
+            if(!send){
+                send_Spektrum_frame();
+                send = true;
+                spekFrameSend ++;
+            } else {
+                spekFrameMissed ++;
+            }
+        
+            sendTOF = false; 
+            startMillis = currentMillis; 
+        STOP_TIMER
+            
+        // End of Period send Timings
+        send_statistik();
+    }
+    
+    START_TIMER
+        get_LTM_data();
+    STOP_TIMER
 }
 
+void send_statistik(){
+    // reset Timers
+    unsigned long cpuTotal = micros() - cpuTotalStart;
+    
+    
+    if(micros()-statTimer >= 1000000){
+        char data[13] = {'$','T','Z', cpuUsed & 0xFF,(cpuUsed >>  8) & 0xFF,(cpuUsed >> 16) & 0xFF,(cpuUsed >> 24) & 0xFF, cpuTotal & 0xFF,(cpuTotal >>  8) & 0xFF,(cpuTotal >> 16) & 0xFF,(cpuTotal >> 24) & 0xFF,spekFrameMissed,spekFrameSend};
+        SimbleeBLE.send(data, 13);
+        statTimer = micros();
+        spekFrameMissed = 0;
+        spekFrameSend = 0;
+    }
+    
+    cpuTotalStart = micros();
+    cpuUsed = 0;
+}
 /* 
  * send spektrum frame over the Uart 
  */
@@ -136,3 +188,5 @@ void addData( char data)
         bufferpointer++;
     }
 }
+
+
