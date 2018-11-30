@@ -43,7 +43,6 @@ char telemetryBytes = 0;
 // Sensor
 VL53L0X sensor;
 uint16_t rangeMilliMeter = 0;
-bool sendTOF = false;
 
 void setup() {
     // Uart
